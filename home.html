@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="cssfile.css">
+    <title>Welcome to my Website</title>
+</head>
+<body>
+    <h1>Meine erste Website</h1>
+    <p class="unterüberschrift">
+        Hallo! schön, dass du es hier her geschafft hast.
+        <br> Hier findest du ein Tic-Tac-Toe Spiel. Ich hoffe du hast Spaß damit! </br>
+    </p>
+
+    <div class=neben>
+        <div class="canvas-button"> <canvas id="game" width="600" height="600"></canvas> </div>
+        <div class="canvas-button">
+             <button id="vsComputer" onclick="computerAn()" class="vsComputer"> Spiele gegen den Computer </button> 
+             <p class="letztes">(muss nach jedem Spiel neu ausgewählt werden)</p>
+        </div>
+    </div>
+
+
+    <p class="normal">
+        "Leg los und ticke, tacker und toe dich zum Sieg!"
+        <br> -ChatGPT </br>
+    </p>
+
+    <a href="autor.html"> Über den Autor</a>
+
+    <script>
+        /*---------------------------------------GLOBALE VARIABELN EINLEITEN/DEFINIEREN---------------------------------------*/
+
+        //get canvas id
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+
+        // höhe & breite canvas
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+
+        // wieviele Rows & Coulmns
+        const numRows = 3;
+        const numCols = 3;
+
+        // flächen der quadranten errechnen
+        const quadrantHeight = canvasHeight/numRows;
+        const quadrantWidth = canvasWidth/numCols;
+
+        // Maus coords einleiten
+        let xmouse;
+        let ymouse;
+
+        // nummer des quadranten einleiten
+        let quadrantNum
+
+        // num vertikal
+        const numVerticalLines = 2;
+
+        // spacing zw lines
+        const lineSpacing = canvasWidth / (numVerticalLines + 1);
+
+        // welche quadranten wurden angetippt & (Kreis | Kreuz)
+        let quadKreis = [];
+        let quadKreuz = [];
+
+        // anzahl der Clicks einführen
+        let clickNo = 1;
+
+        // quadrantenmitten
+        let xq0 = 100;
+        let yq0 = 100;
+
+        let xq1 = 300;
+        let yq1 = 100;
+
+        let xq2 = 500;
+        let yq2 = 100;
+
+        let xq3 = 100;
+        let yq3 = 300;
+
+        let xq4 = 300;
+        let yq4 = 300;
+
+        let xq5 = 500;
+        let yq5 = 300;
+
+        let xq6 = 100;
+        let yq6 = 500;
+
+        let xq7 = 300;
+        let yq7 = 500;
+
+        let xq8 = 500;
+        let yq8 = 500;
+
+        let mitteQuadranten = {
+        0: { x: xq0, y: yq0 },
+        1: { x: xq1, y: yq1 },
+        2: { x: xq2, y: yq2 },
+        3: { x: xq3, y: yq3 },
+        4: { x: xq4, y: yq4 },
+        5: { x: xq5, y: yq5 },
+        6: { x: xq6, y: yq6 },
+        7: { x: xq7, y: yq7 },
+        8: { x: xq8, y: yq8 }
+        };
+
+        let clickedQuadrants = {};
+
+        let computer = false
+
+        /*---------------------------------------GLOBALE FUNKTIONEN EINLEITEN/DEFINIEREN---------------------------------------*/
+
+        function spielfeld(){
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "grey"
+
+            // Draw first vertical line
+            const x1 = lineSpacing;
+            ctx.beginPath();
+            ctx.moveTo(x1, 0);
+            ctx.lineTo(x1, canvasHeight);
+            ctx.stroke();
+
+            // Draw second vertical line
+            const x2 = 2 * lineSpacing;
+            ctx.beginPath();
+            ctx.moveTo(x2, 0);
+            ctx.lineTo(x2, canvasHeight);
+            ctx.stroke();
+        
+            //Draw first horizontal line
+            const y1 = lineSpacing;
+            ctx.beginPath();
+            ctx.moveTo(0, y1);
+            ctx.lineTo(canvasWidth, y1);
+            ctx.stroke();
+
+            // Draw second horizontal line
+            const y2 = 2 * lineSpacing;
+            ctx.beginPath();
+            ctx.moveTo(0, y2);
+            ctx.lineTo(canvasWidth, y2);
+            ctx.stroke();
+        }
+        function mapCoordsToQuad(x, y) {
+            const col = Math.floor(x / quadrantWidth);
+            const row = Math.floor(y / quadrantHeight);
+
+            var quadrant = {xmouse: x, ymouse: y, row: row, col: col, number: row * numCols + col, clickNo: clickNo, /*spieler: kreuzkreis*/}
+            return quadrant.number;
+        }
+
+        // Kreis zeichnen
+        function zeichneKreis(mittex, mittey, radius){
+            ctx.beginPath();
+            ctx.arc(mittex, mittey, radius, 0, 2 * Math.PI);
+            ctx.lineWidth = 10
+            ctx.strokeStyle = "black";
+            ctx.stroke();
+        }
+
+        // Kreuz zeichnen
+        function zeichneKreuz(mittex, mittey, radius){
+            ctx.beginPath();
+            ctx.moveTo(mittex - radius, mittey - radius);
+            ctx.lineTo(mittex + radius, mittey + radius);
+            ctx.moveTo(mittex - radius, mittey + radius);
+            ctx.lineTo(mittex + radius, mittey - radius);
+            ctx.strokeStyle = "black"; 
+            ctx.lineWidth = 10;
+            ctx.stroke();
+        }
+
+        // Hat jemand schon gewonnen?
+        function hatGewonnen(playerQuadrants){  // bekommt quadKreis oder Quadkreuz als input und checkt ob einer der Kombinationen vorhanden ist
+            const gewKombis = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],    // Horizontale Kombis
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],    // Vertikale Kombis
+            [0, 4, 8], [2, 4, 6]                // Diagonale Kombis
+            ];
+
+            for(const combination of gewKombis){
+                if(combination.every(quadrant => playerQuadrants.includes(quadrant))){
+                    return true; //gewonnen
+                }
+            }
+            return false //nicht gewonnen
+        }
+
+        // Ende
+        function ende(winner){
+            setTimeout(function() {
+            alert('Spieler ' + winner + ' hat gewonnen!');
+            canvas.removeEventListener('click', arguments.callee);
+            neustart();
+            }, 250);
+        }
+
+        // Was passiert nach dem Ende?
+        function neustart(){
+            setTimeout(function() {
+            quadKreis = [];
+            quadKreuz = [];
+            clickedQuadrants = [];
+            clickNo = 1;
+            computer = false;
+
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            spielfeld();
+            }, 250)
+        }
+
+        // Wenn Button gedrückt wird computer auf true setzen
+        function computerAn(){
+            computer = !computer;
+            console.log('gedrückt')
+        }
+
+        // Was machen, wenn der Computer am Zug ist?
+        function computerPick() {
+            // Array mit verfügbaren Quadranten initialisieren
+            const availableQuadrants = [];
+            for (let i = 0; i < numCols * numRows; i++) {
+                if (!clickedQuadrants[i]) {
+                    availableQuadrants.push(i);
+                }
+            }
+
+            if (availableQuadrants.length > 0) {
+                // Zufälligen verfügbaren Quadranten auswählen
+                const randomIndex = Math.floor(Math.random() * availableQuadrants.length);
+                const selectedQuadrant = availableQuadrants[randomIndex];
+
+                // Mittelpunkt des ausgewählten Quadranten erhalten
+                const mittex = mitteQuadranten[selectedQuadrant].x;
+                const mittey = mitteQuadranten[selectedQuadrant].y;
+
+                // Radius für das Zeichnen des Kreises festlegen
+                const radius = canvasHeight * (1 / 8);
+
+                // Kreis zeichnen
+                zeichneKreis(mittex, mittey, radius);
+
+                // Quadrant als vom Computer ausgewählt markieren
+                quadKreis.push(selectedQuadrant);
+
+                // Überprüfen, ob der Computer gewonnen hat
+                if (hatGewonnen(quadKreis)) {
+                    console.log('Computer hat gewonnen');
+                    ende('Computer');
+                }
+
+                // Quadrant als geklickt markieren
+                clickedQuadrants[selectedQuadrant] = true;
+            }
+        }
+
+        function access(){
+            neustart();
+        }
+
+        function checkUnentschieden() {
+            if (clickNo > numCols * numRows) {
+                setTimeout(function () {
+                    alert('Unentschieden! Das Spielfeld ist voll.');
+                    neustart();
+                }, 250);
+            }
+        }
+
+        /*---------------------------------------SCRIPT GEBINNT HIER---------------------------------------*/
+
+        window.onload = access;
+        canvas.addEventListener("click", function (event) {
+            const rect = canvas.getBoundingClientRect();
+            xmouse = event.clientX - rect.left;
+            ymouse = event.clientY - rect.top;
+            quadrantNum = mapCoordsToQuad(xmouse, ymouse);
+
+            if (!clickedQuadrants[quadrantNum]) { // check ob schon geklickt
+                clickedQuadrants[quadrantNum] = true;  // als geklickt markieren
+        
+                const mittex = mitteQuadranten[quadrantNum].x; // + (quadrantWidth / 2);
+                const mittey = mitteQuadranten[quadrantNum].y; // + (quadrantHeight / 2);
+                const radius = canvasHeight * (1/8);
+
+                console.log(computer);
+
+                if (clickNo % 2 === 0) { // Spieler Klicknummer zuordnen
+                    quadKreis.push(quadrantNum);
+                    zeichneKreis(mittex, mittey, radius);
+
+                    if(hatGewonnen(quadKreis)){
+                    console.log('Kreis hat gewonnen');
+                    ende('Kreis');
+                    }
+                } else {
+                    quadKreuz.push(quadrantNum);
+                    zeichneKreuz(mittex, mittey, radius);
+
+                    if(hatGewonnen(quadKreuz)){
+                    console.log('Kreuz hat gewonnen');
+                    ende('Kreuz');
+                    }
+
+                    if (computer) {
+                        setTimeout(function() {
+                            computerPick();
+                            clickNo++;
+                        }, 500)
+                    }
+                }
+                clickNo++; // click nummer erhöhen
+                checkUnentschieden();
+            }
+        });
+    </script>
+</body>
+</html>
